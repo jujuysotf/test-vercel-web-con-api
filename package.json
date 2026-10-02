@@ -5,9 +5,11 @@
   "scripts": {
     "dev": "node dev-server.js",
     "start": "node dev-server.js",
-    "build": "node --eval \"if (!require('fs').existsSync('public/index.html')) process.exit(1)\""
+    "build": "node scripts/build-api.mjs"
   },
   "dependencies": {
+    "esbuild": "^0.28.2",
+    "express": "^4.21.2",
     "googleapis": "^181.0.0"
   }
 }
