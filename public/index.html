@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Test Vercel API</title>
+  </head>
+  <body>
+    <p>Prueba de salud: <a href="/api/health">/api/health</a></p>
+    <pre id="out">consultando...</pre>
+    <script>
+      fetch('/api/health')
+        .then(async (res) => {
+          const text = await res.text();
+          document.getElementById('out').textContent = res.status + '\n' + text;
+        })
+        .catch((err) => {
+          document.getElementById('out').textContent = String(err);
+        });
+    </script>
+  </body>
+</html>
