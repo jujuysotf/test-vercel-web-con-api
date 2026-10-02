@@ -4,19 +4,118 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Test Vercel API</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body>
-    <p>Prueba de salud: <a href="/api/health">/api/health</a></p>
-    <pre id="out">consultando...</pre>
+    <p>Salud: <a href="/api/health">/api/health</a></p>
+    <pre id="health">consultando...</pre>
+
+    <p>
+      <button id="calendar-btn" type="button">Salud del calendario</button>
+    </p>
+    <pre id="calendar">sin consultar</pre>
+
+    <p>
+      <label>Fecha <input id="date" type="date" /></label>
+      <label>Duración <input id="duration" type="number" value="60" min="30" step="30" /></label>
+      <button id="busy-btn" type="button">Ver ocupados</button>
+    </p>
+    <pre id="busy">sin consultar</pre>
+
+    <p>
+      <button id="auth-btn" type="button">Entrar con Google</button>
+    </p>
+    <pre id="auth">sin consultar</pre>
+
     <script>
+      function show(id, status, text) {
+        document.getElementById(id).textContent = status + '\n' + text;
+      }
+
       fetch('/api/health')
-        .then(async (res) => {
-          const text = await res.text();
-          document.getElementById('out').textContent = res.status + '\n' + text;
-        })
-        .catch((err) => {
-          document.getElementById('out').textContent = String(err);
+        .then(async (res) => show('health', res.status, await res.text()))
+        .catch((err) => show('health', 'error', String(err)));
+
+      document.getElementById('date').value = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date());
+
+      document.getElementById('busy-btn').addEventListener('click', () => {
+        const date = document.getElementById('date').value;
+        const duration = document.getElementById('duration').value || '60';
+        show('busy', '...', 'consultando');
+        fetch('/api/calendar-availability?date=' + encodeURIComponent(date) + '&duration=' + encodeURIComponent(duration))
+          .then(async (res) => {
+            const data = await res.json();
+            show('busy', res.status, data.text || JSON.stringify(data, null, 2));
+          })
+          .catch((err) => show('busy', 'error', String(err)));
+      });
+
+      document.getElementById('calendar-btn').addEventListener('click', () => {
+        show('calendar', '...', 'consultando');
+        fetch('/api/calendar-status')
+          .then(async (res) => show('calendar', res.status, await res.text()))
+          .catch((err) => show('calendar', 'error', String(err)));
+      });
+
+      function waitForGoogle(timeoutMs) {
+        return new Promise((resolve, reject) => {
+          const started = Date.now();
+          const timer = setInterval(() => {
+            if (window.google?.accounts?.oauth2) {
+              clearInterval(timer);
+              resolve(window.google.accounts);
+              return;
+            }
+            if (Date.now() - started > timeoutMs) {
+              clearInterval(timer);
+              reject(new Error('No se cargó Google Identity Services'));
+            }
+          }, 100);
         });
+      }
+
+      document.getElementById('auth-btn').addEventListener('click', async () => {
+        show('auth', '...', 'abriendo Google');
+        try {
+          const configRes = await fetch('/api/auth-config');
+          const config = await configRes.json();
+          if (!config.clientId) {
+            show('auth', configRes.status, JSON.stringify(config, null, 2));
+            return;
+          }
+
+          const accounts = await waitForGoogle(8000);
+          const tokenClient = accounts.oauth2.initTokenClient({
+            client_id: config.clientId,
+            scope: 'openid email profile',
+            callback: async (response) => {
+              if (response.error || !response.access_token) {
+                show('auth', 'error', response.error_description || response.error || 'Login cancelado');
+                return;
+              }
+              const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: { Authorization: 'Bearer ' + response.access_token },
+              });
+              const profile = await profileRes.json();
+              show('auth', profileRes.status, JSON.stringify({
+                name: profile.name,
+                email: profile.email,
+              }, null, 2));
+            },
+            error_callback: (error) => {
+              show('auth', 'error', error?.message || 'No se pudo abrir el login');
+            },
+          });
+          tokenClient.requestAccessToken({ prompt: 'select_account' });
+        } catch (err) {
+          show('auth', 'error', err.message || String(err));
+        }
+      });
     </script>
   </body>
 </html>
