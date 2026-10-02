@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "node dev-server.js",
-    "start": "node dev-server.js"
+    "start": "node dev-server.js",
+    "build": "node --eval \"if (!require('fs').existsSync('public/index.html')) process.exit(1)\""
   },
   "dependencies": {
     "googleapis": "^181.0.0"
