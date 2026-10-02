@@ -20,15 +20,40 @@ function loadEnvFile() {
 
 loadEnvFile();
 
-const { createHandler } = require('./server/app');
-const apiHandler = createHandler();
+const routes = {
+  '/api/health': require('./api/health'),
+  '/api/calendar-status': require('./api/calendar-status'),
+  '/api/calendar-availability': require('./api/calendar-availability'),
+  '/api/auth-config': require('./api/auth-config'),
+};
+
 const publicDir = path.join(__dirname, 'public');
+
+function withHelpers(res) {
+  res.status = (code) => {
+    res.statusCode = code;
+    return res;
+  };
+  res.json = (body) => {
+    if (!res.getHeader('Content-Type')) {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    }
+    res.end(JSON.stringify(body));
+  };
+  return res;
+}
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url || '/', 'http://127.0.0.1');
 
-  if (url.pathname.startsWith('/api/')) {
-    apiHandler(req, res);
+  const handler = routes[url.pathname];
+  if (handler) {
+    Promise.resolve(handler(req, withHelpers(res))).catch((err) => {
+      if (res.writableEnded) return;
+      res.statusCode = 500;
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.end(JSON.stringify({ error: err?.message || String(err) }));
+    });
     return;
   }
 
